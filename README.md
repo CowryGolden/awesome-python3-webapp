@@ -81,7 +81,15 @@ awesome-python3-webapp/  <-- 根目录
 
 自备，推荐用Sublime Text，请参考[使用文本编辑器](https://www.liaoxuefeng.com/wiki/0014316089557264a6b348958f449949df42a6d3a2e542c000/0014316399410395f704750ee9440228135925a6ca1dad8000)。
 
+# Day 2 - 编写Web App骨架
 
+由于我们的Web App建立在asyncio的基础上，因此用aiohttp写一个基本的app.py；
+
+运行python app.py，Web App将在9000端口监听HTTP请求，并且对首页/进行响应；
+
+这里我们简单地返回一个Awesome字符串，在浏览器中可以看到效果；
+
+这说明我们的Web App骨架已经搭好了，可以进一步往里面添加更多的东西。
 
 
 
