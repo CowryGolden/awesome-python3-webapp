@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+r'''
+    # 由于我们的Web App建立在asyncio的基础上，因此用aiohttp写一个基本的app.py来测试Web框架的可用性
+
+'''
+__author__ = 'Cowry Golden'
+
+# 导入依赖
 import logging; logging.basicConfig(level=logging.INFO)
 
 import asyncio, os, json, time
