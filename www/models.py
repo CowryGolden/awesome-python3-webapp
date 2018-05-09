@@ -14,7 +14,7 @@ from orm import Model, StringField, BooleanField, FloatField, TextField
 
 # 生成主键ID
 def next_id():
-    return '%015d%s000' % (int(time.time() * 1000), uuid.uuid4().hex)
+    return '%015d%s000' % (int(time.time() * 1000), uuid.uuid4().hex)    # 根据系统当前时间乘以1000后的15位长整数（不足15位左端补0）和一个随机得到的UUID（32位）填充3个0 组成一个长度为50的字符串
 
 # 用户类
 class User(Model):
