@@ -132,5 +132,30 @@ $ mysql -u root -p < schema.sql
 
 > 编写数据访问代码
 
+# Day 5 - 编写Web框架
+
+> 把一个函数映射为一个URL处理函数，定义@get和@post装饰器函数
+
+> 定义RequestHandler
+
+URL处理函数不一定是一个coroutine，因此我们用RequestHandler()来封装一个URL处理函数。<br>
+RequestHandler是一个类，由于定义了__call__()方法，因此可以将其实例视为函数。<br>
+RequestHandler目的就是从URL函数中分析其需要接收的参数，从request中获取必要的参数，调用URL函数，然后把结果转换为web.Response对象，这样，就完全符合aiohttp框架的要求；<br>
+再编写一个add_route函数，用来注册一个URL处理函数；<br>
+最后一步，把很多次add_route()注册的调用，变成自动扫描；<br>
+最后，在app.py中加入middleware、jinja2模板和自注册的支持。
+
+> middleware
+
+middleware是一种拦截器，一个URL在被某个函数处理前，可以经过一系列的middleware的处理。<br>
+一个middleware可以改变URL的输入、输出，甚至可以决定不继续处理而直接返回。middleware的用处就在于把通用的功能从每个URL处理函数中拿出来，集中放到一个地方。例如，一个记录URL日志的logger；<br>
+而response这个middleware把返回值转换为web.Response对象再返回，以保证满足aiohttp的要求；<br>
+有了这些基础设施，我们就可以专注地往handlers模块不断添加URL处理函数了，可以极大地提高开发效率。
+
+
+
+
+
+
 
 
