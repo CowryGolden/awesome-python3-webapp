@@ -115,5 +115,22 @@ Web App里面有很多地方都要访问数据库。访问数据库需要创建�
 
 </pre>
 
+# Day 4 - 编写Model
+
+> 编写具体的Model
+
+有了ORM，我们就可以把Web App需要的3个表用Model表示出来，具体有：User、Blog、Comment
+
+> 初始化数据库表
+
+如果表的数量很少，可以手写创建表的SQL脚本；
+如果表的数量很多，可以从Model对象直接通过脚本自动生成SQL脚本，使用更简单。
+把SQL脚本放到MySQL命令行里执行：
+<pre>
+$ mysql -u root -p < schema.sql
+</pre>
+
+> 编写数据访问代码
+
 
 
