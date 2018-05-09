@@ -93,7 +93,7 @@ def create_args_string(num):
     L = []
     for n in range(num):
         L.append('?')
-    return ','.join(L)         
+    return ', '.join(L)         
 
 # 数据库列属性基类（包括列名、列类型、该列是否为主键、默认值等）
 class Field(object):
@@ -149,25 +149,26 @@ class ModelMetaclass(type):
         # 主键列名称
         primaryKey = None
         for k, v in attrs.items():
-            # 是列类型的就保存
-            logging.info('  found mapping: %s ==> %s' % (k, v))
-            mappings[k] = v
-            if v.primary_key:    # 保存为主键的字段 
-                if primaryKey:
-                    raise StandardError('Duplicate primary key for field: %s' % k)
-                primaryKey = k
-            else:    # 保存非主键字段
-                fields.append(k)
+            if isinstance(v, Field):
+                # 是列类型的就保存
+                logging.info('  found mapping: %s ==> %s' % (k, v))
+                mappings[k] = v
+                if v.primary_key:    # 保存为主键的字段 
+                    if primaryKey:
+                        raise StandardError('Duplicate primary key for field: %s' % k)
+                    primaryKey = k
+                else:    # 保存非主键字段
+                    fields.append(k)
         if not primaryKey:
             raise StandardError('Primary key not found.')
         for k in mappings.keys():    # 避免类属性值覆盖实例属性值，故将类属性移除
             attrs.pop(k)
         # 根据MySQL数据库特性转义字段名，避免与其关键字冲突
         escaped_fields = list(map(lambda f: '`%s`' % f, fields))
-        attrs['__mappings__'] == mappings    # 保存实例属性和列的映射关系
-        attrs['__table__'] == tableName    # 表名
-        attrs['__primary_key__'] == primaryKey    # 主键属性名
-        attrs['__fields__'] == fields    # 除主键外的属性名
+        attrs['__mappings__'] = mappings    # 保存实例属性和列的映射关系
+        attrs['__table__'] = tableName    # 表名
+        attrs['__primary_key__'] = primaryKey    # 主键属性名
+        attrs['__fields__'] = fields    # 除主键外的属性名
         # 以下四种方法保存了默认了增删改查操作,其中添加的反引号``,是为了避免与sql关键字冲突的,否则sql语句会执行出错
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ','.join(escaped_fields), tableName)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (tableName, ','.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
