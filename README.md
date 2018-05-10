@@ -152,7 +152,15 @@ middleware是一种拦截器，一个URL在被某个函数处理前，可以经�
 而response这个middleware把返回值转换为web.Response对象再返回，以保证满足aiohttp的要求；<br>
 有了这些基础设施，我们就可以专注地往handlers模块不断添加URL处理函数了，可以极大地提高开发效率。
 
+# Day 6 - 编写配置文件
 
+有了Web框架和ORM框架，我们就可以开始装配App了。<br>
+通常，一个Web App在运行时都需要读取配置文件，比如数据库的用户名、口令等，在不同的环境中运行时，Web App可以通过读取不同的配置文件来获得正确的配置。<br>
+由于Python本身语法简单，完全可以直接用Python源代码来实现配置，而不需要再解析一个单独的.properties或者.yaml等配置文件。<br>
+默认的配置文件应该完全符合本地开发环境，这样，无需任何设置，就可以立刻启动服务器。<br>
+如果要部署到服务器时，通常需要修改数据库的host等信息，直接修改config_default.py不是一个好办法，更好的方法是编写一个config_override.py，用来覆盖某些默认设置；<br>
+把config_default.py作为开发环境的标准配置，把config_override.py作为生产环境的标准配置，我们就可以既方便地在本地开发，又可以随时把应用部署到服务器上。<br>
+应用程序读取配置文件需要优先从config_override.py读取。为了简化读取配置文件，可以把所有配置读取到统一的config.py中。
 
 
 
