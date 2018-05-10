@@ -162,8 +162,13 @@ middleware是一种拦截器，一个URL在被某个函数处理前，可以经�
 把config_default.py作为开发环境的标准配置，把config_override.py作为生产环境的标准配置，我们就可以既方便地在本地开发，又可以随时把应用部署到服务器上。<br>
 应用程序读取配置文件需要优先从config_override.py读取。为了简化读取配置文件，可以把所有配置读取到统一的config.py中。
 
+# Day 7 - 编写MVC
 
-
+现在，ORM框架、Web框架和配置都已就绪，我们可以开始编写一个最简单的MVC，把它们全部启动起来。<br>
+通过Web框架的@get和ORM框架的Model支持，可以很容易地编写一个处理首页URL的函数；<br>
+'__template__'指定的模板文件是test.html，其他参数是传递给模板的数据，所以我们在模板的根目录templates下创建test.html；<br>
+然后，在浏览器中访问http://localhost:9000/。<br>
+如果数据库的users表什么内容也没有，你就无法在浏览器中看到循环输出的内容。可以自己在MySQL的命令行里给users表添加几条记录，然后再访问。<br>
 
 
 
