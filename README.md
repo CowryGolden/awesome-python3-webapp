@@ -170,5 +170,134 @@ middleware是一种拦截器，一个URL在被某个函数处理前，可以经�
 然后，在浏览器中访问http://localhost:9000/。<br>
 如果数据库的users表什么内容也没有，你就无法在浏览器中看到循环输出的内容。可以自己在MySQL的命令行里给users表添加几条记录，然后再访问。<br>
 
+# Day 8 - 构建前端
+
+虽然我们跑通了一个最简单的MVC，但是页面效果肯定不会让人满意。
+
+对于复杂的HTML前端页面来说，我们需要一套基础的CSS框架来完成页面布局和基本样式。另外，jQuery作为操作DOM的JavaScript库也必不可少。
+
+从零开始写CSS不如直接从一个已有的功能完善的CSS框架开始。有很多CSS框架可供选择。我们这次选择uikit这个强大的CSS框架。它具备完善的响应式布局，漂亮的UI，以及丰富的HTML组件，让我们能轻松设计出美观而简洁的页面。
+
+可以从uikit首页下载打包的资源文件。
+
+所有的静态资源文件我们统一放到www/static目录下，并按照类别归类：
+
+<pre>
+static/
++- css/
+|  +- addons/
+|  |  +- uikit.addons.min.css
+|  |  +- uikit.almost-flat.addons.min.css
+|  |  +- uikit.gradient.addons.min.css
+|  +- awesome.css
+|  +- uikit.almost-flat.addons.min.css
+|  +- uikit.gradient.addons.min.css
+|  +- uikit.min.css
++- fonts/
+|  +- fontawesome-webfont.eot
+|  +- fontawesome-webfont.ttf
+|  +- fontawesome-webfont.woff
+|  +- FontAwesome.otf
++- js/
+   +- awesome.js
+   +- html5.js
+   +- jquery.min.js
+   +- uikit.min.js
+</pre>
+
+由于前端页面肯定不止首页一个页面，每个页面都有相同的页眉和页脚。如果每个页面都是独立的HTML模板，那么我们在修改页眉和页脚的时候，就需要把每个模板都改一遍，这显然是没有效率的。
+
+常见的模板引擎已经考虑到了页面上重复的HTML部分的复用问题。有的模板通过include把页面拆成三部分：
+```
+<html>
+    <% include file="inc_header.html" %>
+    <% include file="index_body.html" %>
+    <% include file="inc_footer.html" %>
+</html>
+```
+这样，相同的部分inc_header.html和inc_footer.html就可以共享。
+
+但是include方法不利于页面整体结构的维护。jinjia2的模板还有另一种“继承”方式，实现模板的复用更简单。
+
+“继承”模板的方式是通过编写一个“父模板”，在父模板中定义一些可替换的block（块）。然后，编写多个“子模板”，每个子模板都可以只替换父模板定义的block。比如，定义一个最简单的父模板：
+```
+<!-- base.html -->
+<html>
+    <head>
+        <title>{% block title%} 这里定义了一个名为title的block {% endblock %}</title>
+    </head>
+    <body>
+        {% block content %} 这里定义了一个名为content的block {% endblock %}
+    </body>
+</html>
+```
+
+对于子模板a.html，只需要把父模板的title和content替换掉：
+```
+{% extends 'base.html' %}
+
+{% block title %} A {% endblock %}
+
+{% block content %}
+    <h1>Chapter A</h1>
+    <p>blablabla...</p>
+{% endblock %}
+```
+
+对于子模板b.html，如法炮制：
+```
+{% extends 'base.html' %}
+
+{% block title %} B {% endblock %}
+
+{% block content %}
+    <h1>Chapter B</h1>
+    <ul>
+       <li>list 1</li>
+       <li>list 2</li>
+    </ul>
+{% endblock %}
+```
+
+这样，一旦定义好父模板的整体布局和CSS样式，编写子模板就会非常容易。
+
+# Day 9 - 编写API
+
+什么是Web API呢？
+
+如果我们想要获取一篇Blog，输入http://localhost:9000/blog/123，就可以看到id为123的Blog页面，但这个结果是HTML页面，它同时混合包含了Blog的数据和Blog的展示两个部分。对于用户来说，阅读起来没有问题，但是，如果机器读取，就很难从HTML中解析出Blog的数据。
+
+如果一个URL返回的不是HTML，而是机器能直接解析的数据，这个URL就可以看成是一个Web API。比如，读取http://localhost:9000/api/blogs/123，如果能直接返回Blog的数据，那么机器就可以直接读取。
+
+REST就是一种设计API的模式。最常用的数据格式是JSON。由于JSON能直接被JavaScript读取，所以，以JSON格式编写的REST风格的API具有简单、易读、易用的特点。
+
+编写API有什么好处呢？由于API就是把Web App的功能全部封装了，所以，通过API操作数据，可以极大地把前端和后端的代码隔离，使得后端代码易于测试，前端代码编写更简单。
+
+一个API也是一个URL的处理函数，我们希望能直接通过一个@api来把函数变成JSON格式的REST API，这样，获取注册用户可以用一个API实现如下：
+```
+@get('/api/users')
+def api_get_users(*, page='1'):
+    page_index = get_page_index(page)
+    num = yield from User.findNumber('count(id)')
+    p = Page(num, page_index)
+    if num == 0:
+        return dict(page=p, users=())
+    users = yield from User.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    for u in users:
+        u.passwd = '******'
+    return dict(page=p, users=users)
+```
+
+只要返回一个dict，后续的response这个middleware就可以把结果序列化为JSON并返回。
+
+我们需要对Error进行处理，因此定义一个APIError，这种Error是指API调用时发生了逻辑错误（比如用户不存在），其他的Error视为Bug，返回的错误代码为internalerror。
+
+客户端调用API时，必须通过错误代码来区分API调用是否成功。错误代码是用来告诉调用者出错的原因。很多API用一个整数表示错误码，这种方式很难维护错误码，客户端拿到错误码还需要查表得知错误信息。更好的方式是用字符串表示错误代码，不需要看文档也能猜到错误原因。
+
+可以在浏览器直接测试API，例如，输入http://localhost:9000/api/users，就可以看到返回的JSON：
+
+
+
+
 
 

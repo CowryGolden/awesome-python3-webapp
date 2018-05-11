@@ -18,6 +18,8 @@ from datetime import datetime
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader
 
+from config import configs
+
 import orm
 from coroweb import add_routes, add_static
 
@@ -57,7 +59,7 @@ def init_jinja2(app, **kw):
     filters = kw.get('filters', None)
     if filters is not None:
         for name, f in filters.items():
-            env.filters[name] = filter
+            env.filters[name] = f
     app['__templating__'] = env
 
 # 日志工厂，记录URL日志的logger
@@ -86,12 +88,14 @@ async def response_factory(app, handler):
     async def response(request):
         logging.info('Response handler...')
         r = await handler(request)
+        if isinstance(r, web.StreamResponse):
+            return r
         if isinstance(r, bytes):
             resp = web.Response(body=r)
             resp.content_type = 'application/octet-stream'
             return resp
         if isinstance(r, str):
-            if r.startswith('Redirect:'):
+            if r.startswith('redirect:'):
                 return web.HTTPFound(r[9:])
             resp = web.Response(body=r.encode('utf-8'))
             resp.content_type = 'text/html;charset=utf-8'
@@ -134,7 +138,9 @@ def datetime_filter(t):
 
 # 初始化
 async def init(loop):
-    await orm.create_pool(loop=loop, host='127.0.0.1', port=3306, user='www-data', password='www-data', db='awesome')
+    # await orm.create_pool(loop=loop, host='127.0.0.1', port=3306, user='www-data', password='www-data', db='awesome')
+    # 改用读配置文件方式配置环境
+    await orm.create_pool(loop=loop, **configs.db)
     app = web.Application(loop=loop, middlewares=[
         logger_factory, response_factory
     ])
