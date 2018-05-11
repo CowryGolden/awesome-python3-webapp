@@ -59,7 +59,7 @@ def init_jinja2(app, **kw):
     filters = kw.get('filters', None)
     if filters is not None:
         for name, f in filters.items():
-            env.filters[name] = filter
+            env.filters[name] = f
     app['__templating__'] = env
 
 # 日志工厂，记录URL日志的logger
@@ -88,12 +88,14 @@ async def response_factory(app, handler):
     async def response(request):
         logging.info('Response handler...')
         r = await handler(request)
+        if isinstance(r, web.StreamResponse):
+            return r
         if isinstance(r, bytes):
             resp = web.Response(body=r)
             resp.content_type = 'application/octet-stream'
             return resp
         if isinstance(r, str):
-            if r.startswith('Redirect:'):
+            if r.startswith('redirect:'):
                 return web.HTTPFound(r[9:])
             resp = web.Response(body=r.encode('utf-8'))
             resp.content_type = 'text/html;charset=utf-8'
