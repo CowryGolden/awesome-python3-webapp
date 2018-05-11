@@ -37,3 +37,13 @@ def index(request):
         'blogs' : blogs
     }
 
+# 使用REST风格API获取用户信息
+# 这里通过Web API获取json格式的用户信息数据，访问路径：http://127.0.0.1:9000/api/users
+@get('/api/users')
+async def api_get_users():
+    users = await User.findAll(orderBy='created_at desc')
+    for u in users:
+        u.passwd = '******'
+    return dict(users=users)    
+
+
