@@ -97,6 +97,18 @@ async def index(request):
 # 测试构建的Blog前端首页模板
 @get('/')
 def index(request):
+    r""" 
+    #### 由于已经使用middleware功能找到cookie对应的user并放入request【具体参见：app.py，response_factory()方法中加入的：r['__user__'] = request.__user__ 等语句】
+    #### 因此不需要如下判断和获取了，仅需在返回内容中加入：'__user__' : request.__user__ 即可
+    # 增加对登录用户的判断
+    user = None
+    cookie_str = request.cookies.get(COOKIE_NAME)
+    if cookie_str:
+        if 'deleted' in cookie_str:    # 因为登出之后cookie变为了‘-delete-’,不加判断的话会调用cookie2user()函数，而这个函数里边有int(expires)，此时expires就是‘delete’,是一个非数字的字符串，会报错
+            user = None
+        else:
+            user = await cookie2user(cookie_str)
+    """
     summary = 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
     blogs = [
         Blog(id='1', name='Test Blog', summary=summary, created_at=time.time()-120),
@@ -105,7 +117,8 @@ def index(request):
     ]
     return {
         '__template__' : 'blogs.html',
-        'blogs' : blogs
+        'blogs' : blogs,
+        '__user__' : request.__user__    # 用户对登录用户的判断
     }
 
 r'''

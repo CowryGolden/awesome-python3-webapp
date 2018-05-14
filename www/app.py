@@ -82,7 +82,7 @@ async def auth_factory(app, handler):
             user = await cookie2user(cookie_str)
             if user:
                 logging.info('Set current user: %s' % user.email)
-                request.__user__ = user
+                request.__user__ = user    # 使用middleware功能找到cookie对应的user并放入request，以供前端进行用户判断
         if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
             return web.HTTPFound('/signin')
         return (await handler(request))
@@ -126,6 +126,7 @@ async def response_factory(app, handler):
                 resp.content_type = 'application/json;charset=utf-8'
                 return resp
             else:
+                r['__user__'] = request.__user__    # 增加当前操作用户
                 resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encode('utf-8'))
                 resp.content_type = 'text/html;charset=utf-8'
                 return resp
