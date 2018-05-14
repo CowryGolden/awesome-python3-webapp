@@ -36,7 +36,7 @@ def get_page_index(page_str):
         pass
     if p < 1:
         p = 1
-        return p
+    return p
 
 # 将纯文本内容转为html格式
 def text2html(text):
@@ -216,6 +216,13 @@ async def api_register_user(*, email, name, passwd):
     r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
     return r
 
+# Blog管理主页面跳转页
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+    return {
+        '__template__' : 'manage_blogs.html',
+        'page_index' : get_page_index(page)
+    }
 
 # 管理者创建blog跳转页
 @get('/manage/blogs/create')
@@ -260,4 +267,14 @@ async def api_create_blog(request, *, name, summary, content):
     await blog.save()
     return blog
 
+# 获取Blog列表API
+@get('/api/blogs')
+async def api_blogs(*, page='1'):
+    page_index = get_page_index(page)
+    num = await Blog.findNumber('count(id)')
+    p = Page(num, page_index)
+    if num == 0:
+        return dict(page=p, blogs=())
+    blogs = await Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, blogs=blogs)
 
