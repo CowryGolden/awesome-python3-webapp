@@ -23,6 +23,8 @@ from config import configs
 import orm
 from coroweb import add_routes, add_static
 
+from handlers import cookie2user, COOKIE_NAME
+
 r""" 
 # 测试可用性代码
 def index(request):
@@ -69,6 +71,23 @@ async def logger_factory(app, handler):
         # await asyncio.sleep(0.3)
         return (await handler(request))
     return logger
+
+# 用户认证工厂
+async def auth_factory(app, handler):
+    async def auth(request):
+        logging.info('Check user: %s %s' % (request.method, request.path))
+        request.__user__ = None
+        cookie_str = request.cookies.get(COOKIE_NAME)
+        if cookie_str:
+            user = await cookie2user(cookie_str)
+            if user:
+                logging.info('Set current user: %s' % user.email)
+                request.__user__ = user
+        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+            return web.HTTPFound('/signin')
+        return (await handler(request))
+    return auth    
+
 
 # 数据转换工厂
 async def data_factory(app, handler):
@@ -142,7 +161,7 @@ async def init(loop):
     # 改用读配置文件方式配置环境
     await orm.create_pool(loop=loop, **configs.db)
     app = web.Application(loop=loop, middlewares=[
-        logger_factory, response_factory
+        logger_factory, auth_factory, response_factory
     ])
     init_jinja2(app, filters=dict(datetime=datetime_filter))
     add_routes(app, 'handlers')
