@@ -399,5 +399,124 @@ Form表单通过`<form v-on="submit: submit">`把提交表单的事件关联到s
 如果我们在JavaScript逻辑中修改了Model，这个修改会立刻反映到View上。试试在JavaScript控制台输入vm.name = 'MVVM简介'，可以看到文本框的内容自动被同步了：<br>
 双向绑定是MVVM框架最大的作用。借助于MVVM，我们把复杂的显示逻辑交给框架完成。由于后端编写了独立的REST API，所以，前端用AJAX提交表单非常容易，前后端分离得非常彻底。<br>
 
+# Day 12 - 编写日志列表页
 
+MVVM模式不但可用于Form表单，在复杂的管理页面中也能大显身手。例如，分页显示Blog的功能，我们先把后端代码写出来：
+
+在apis.py中定义一个Page类用于存储分页信息：`class Page(object):...`
+
+在handlers.py中实现API：
+```
+@get('/api/blogs')
+def api_blogs(*, page='1'):
+    page_index = get_page_index(page)
+    num = yield from Blog.findNumber('count(id)')
+    p = Page(num, page_index)
+    if num == 0:
+        return dict(page=p, blogs=())
+    blogs = yield from Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, blogs=blogs)
+```
+管理页面：
+```
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+    return {
+        '__template__': 'manage_blogs.html',
+        'page_index': get_page_index(page)
+    }
+```
+模板页面首先通过API：`GET /api/blogs?page=?`拿到Model：
+```
+{
+    "page": {
+        "has_next": true,
+        "page_index": 1,
+        "page_count": 2,
+        "has_previous": false,
+        "item_count": 12
+    },
+    "blogs": [...]
+}
+```
+然后，通过Vue初始化MVVM：
+```
+<script>
+function initVM(data) {
+    var vm = new Vue({
+        el: '#vm',
+        data: {
+            blogs: data.blogs,
+            page: data.page
+        },
+        methods: {
+            edit_blog: function (blog) {
+                location.assign('/manage/blogs/edit?id=' + blog.id);
+            },
+            delete_blog: function (blog) {
+                if (confirm('确认要删除“' + blog.name + '”？删除后不可恢复！')) {
+                    postJSON('/api/blogs/' + blog.id + '/delete', function (err, r) {
+                        if (err) {
+                            return alert(err.message || err.error || err);
+                        }
+                        refresh();
+                    });
+                }
+            }
+        }
+    });
+    $('#vm').show();
+}
+$(function() {
+    getJSON('/api/blogs', {
+        page: {{ page_index }}
+    }, function (err, results) {
+        if (err) {
+            return fatal(err);
+        }
+        $('#loading').hide();
+        initVM(results);
+    });
+});
+</script>
+```
+View的容器是#vm，包含一个table，我们用v-repeat可以把Model的数组blogs直接变成多行的<tr>：
+```
+<div id="vm" class="uk-width-1-1">
+    <a href="/manage/blogs/create" class="uk-button uk-button-primary"><i class="uk-icon-plus"></i> 新日志</a>
+
+    <table class="uk-table uk-table-hover">
+        <thead>
+            <tr>
+                <th class="uk-width-5-10">标题 / 摘要</th>
+                <th class="uk-width-2-10">作者</th>
+                <th class="uk-width-2-10">创建时间</th>
+                <th class="uk-width-1-10">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr v-repeat="blog: blogs" >
+                <td>
+                    <a target="_blank" v-attr="href: '/blog/'+blog.id" v-text="blog.name"></a>
+                </td>
+                <td>
+                    <a target="_blank" v-attr="href: '/user/'+blog.user_id" v-text="blog.user_name"></a>
+                </td>
+                <td>
+                    <span v-text="blog.created_at.toDateTime()"></span>
+                </td>
+                <td>
+                    <a href="#0" v-on="click: edit_blog(blog)"><i class="uk-icon-edit"></i>
+                    <a href="#0" v-on="click: delete_blog(blog)"><i class="uk-icon-trash-o"></i>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div v-component="pagination" v-with="page"></div>
+</div>
+```
+往Model的blogs数组中增加一个Blog元素，table就神奇地增加了一行；把blogs数组的某个元素删除，table就神奇地减少了一行。所有复杂的Model-View的映射逻辑全部由MVVM框架完成，我们只需要在HTML中写上v-repeat指令，就什么都不用管了。
+
+可以把v-repeat="blog: blogs"看成循环代码，所以，可以在一个<tr>内部引用循环变量blog。v-text和v-attr指令分别用于生成文本和DOM节点属性。
 
