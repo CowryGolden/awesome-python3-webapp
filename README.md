@@ -296,8 +296,309 @@ def api_get_users(*, page='1'):
 
 可以在浏览器直接测试API，例如，输入http://localhost:9000/api/users，就可以看到返回的JSON：
 
+# Day 10 - 用户注册和登录
+
+用户管理是绝大部分Web网站都需要解决的问题。用户管理涉及到用户注册和登录。
+
+> 用户注册
+
+用户注册相对简单，我们可以先通过API把用户注册这个功能实现了；<br>
+注意用户口令是客户端传递的经过SHA1计算后的40位Hash字符串，所以服务器端并不知道用户的原始口令。<br>
+接下来可以创建一个注册页面，让用户填写注册表单，然后，提交数据到注册用户的API；<br>
+
+> 用户登录
+
+用户登录比用户注册复杂。由于HTTP协议是一种无状态协议，而服务器要跟踪用户状态，就只能通过cookie实现。大多数Web框架提供了Session功能来封装保存用户状态的cookie。<br>
+Session的优点是简单易用，可以直接从Session中取出用户登录信息。<br>
+Session的缺点是服务器需要在内存中维护一个映射表来存储用户登录信息，如果有两台以上服务器，就需要对Session做集群，因此，使用Session的Web App很难扩展。<br>
+我们采用直接读取cookie的方式来验证用户登录，每次用户访问任意URL，都会对cookie进行验证，这种方式的好处是保证服务器处理任意的URL都是无状态的，可以扩展到多台服务器。<br>
+由于登录成功后是由服务器生成一个cookie发送给浏览器，所以，要保证这个cookie不会被客户端伪造出来。<br>
+实现防伪造cookie的关键是通过一个单向算法（例如SHA1），举例如下：<br>
+当用户输入了正确的口令登录成功后，服务器可以从数据库取到用户的id，并按照如下方式计算出一个字符串：<br>
+```
+"用户id" + "过期时间" + SHA1("用户id" + "用户口令" + "过期时间" + "SecretKey")
+```
+当浏览器发送cookie到服务器端后，服务器可以拿到的信息包括：<br>
+* 用户id
+* 过期时间
+* SHA1值
+
+如果未到过期时间，服务器就根据用户id查找用户口令，并计算：<br>
+```
+SHA1("用户id" + "用户口令" + "过期时间" + "SecretKey")
+```
+并与浏览器cookie中的哈希进行比较，如果相等，则说明用户已登录，否则，cookie就是伪造的。<br>
+<b>这个算法的关键在于SHA1是一种单向算法，即可以通过原始字符串计算出SHA1结果，但无法通过SHA1结果反推出原始字符串。</b><br>
+利用middlewares在处理URL之前，把cookie解析出来，并将登录用户绑定到request对象上，这样，后续的URL处理函数就可以直接拿到登录用户；<br>
+
+这样，我们就完成了用户注册和登录的功能。
+
+# Day 11 - 编写日志创建页
+
+ASP、JSP、PHP等都是用模板方式生成前端页面。<br>
+如果在页面上大量使用JavaScript（事实上大部分页面都会），模板方式仍然会导致JavaScript代码与后端代码绑得非常紧密，以至于难以维护。其根本原因在于负责显示的HTML DOM模型与负责数据和交互的JavaScript代码没有分割清楚。<br>
+要编写可维护的前端代码绝非易事。和后端结合的MVC模式已经无法满足复杂页面逻辑的需要了，所以，新的MVVM：Model View ViewModel模式应运而生。<br>
+MVVM最早由微软提出来，它借鉴了桌面应用程序的MVC思想，在前端页面中，把Model用纯JavaScript对象表示：<br>
+```
+<script>
+    var blog = {
+        name: 'hello',
+        summary: 'this is summary',
+        content: 'this is content...'
+    };
+</script>
+```
+View是纯HTML：
+```
+<form action="/api/blogs" method="post">
+    <input name="name">
+    <input name="summary">
+    <textarea name="content"></textarea>
+    <button type="submit">OK</button>
+</form>
+```
+由于Model表示数据，View负责显示，两者做到了最大限度的分离。<br>
+把Model和View关联起来的就是ViewModel。ViewModel负责把Model的数据同步到View显示出来，还负责把View的修改同步回Model。<br>
+ViewModel如何编写？需要用JavaScript编写一个通用的ViewModel，这样，就可以复用整个MVVM模型了。<br>
+好消息是已有许多成熟的MVVM框架，例如AngularJS，KnockoutJS等。我们选择Vue这个简单易用的MVVM框架来实现创建Blog的页面templates/manage_blog_edit.html。<br>
+```
+function initVM(blog) {
+    var vm = new Vue({
+        el: '#vm',
+        data: blog,
+        methods: {
+            submit: function (event) {
+                event.preventDefault();
+                var $form = $('#vm').find('form');
+                $form.postJSON(action, this.$data, function (err, r) {
+                    if (err) {
+                        $form.showFormError(err);
+                    }
+                    else {
+                        return location.assign('/api/blogs/' + r.id);
+                    }
+                });
+            }
+        }
+    });
+    $('#vm').show();
+}
+```
+初始化Vue时，我们指定3个参数：
+1. el：根据选择器查找绑定的View，这里是#vm，就是id为vm的DOM，对应的是一个<div>标签；
+2. data：JavaScript对象表示的Model，我们初始化为{ name: '', summary: '', content: ''}；
+3. methods：View可以触发的JavaScript函数，submit就是提交表单时触发的函数。
+
+接下来，我们在`<form>`标签中，用几个简单的v-model，就可以让Vue把Model和View关联起来：
+```
+<!-- input的value和Model的name关联起来了 -->
+<input v-model="name" class="uk-width-1-1">
+```
+Form表单通过`<form v-on="submit: submit">`把提交表单的事件关联到submit方法。<br>
+需要特别注意的是，在MVVM中，Model和View是双向绑定的。如果我们在Form中修改了文本框的值，可以在Model中立刻拿到新的值。试试在表单中输入文本，然后在Chrome浏览器中打开JavaScript控制台，可以通过vm.name访问单个属性，或者通过vm.$data访问整个Model：<br>
+如果我们在JavaScript逻辑中修改了Model，这个修改会立刻反映到View上。试试在JavaScript控制台输入vm.name = 'MVVM简介'，可以看到文本框的内容自动被同步了：<br>
+双向绑定是MVVM框架最大的作用。借助于MVVM，我们把复杂的显示逻辑交给框架完成。由于后端编写了独立的REST API，所以，前端用AJAX提交表单非常容易，前后端分离得非常彻底。<br>
+
+# Day 12 - 编写日志列表页
+
+MVVM模式不但可用于Form表单，在复杂的管理页面中也能大显身手。例如，分页显示Blog的功能，我们先把后端代码写出来：
+
+在apis.py中定义一个Page类用于存储分页信息：`class Page(object):...`
+
+在handlers.py中实现API：
+```
+@get('/api/blogs')
+def api_blogs(*, page='1'):
+    page_index = get_page_index(page)
+    num = yield from Blog.findNumber('count(id)')
+    p = Page(num, page_index)
+    if num == 0:
+        return dict(page=p, blogs=())
+    blogs = yield from Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, blogs=blogs)
+```
+管理页面：
+```
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+    return {
+        '__template__': 'manage_blogs.html',
+        'page_index': get_page_index(page)
+    }
+```
+模板页面首先通过API：`GET /api/blogs?page=?`拿到Model：
+```
+{
+    "page": {
+        "has_next": true,
+        "page_index": 1,
+        "page_count": 2,
+        "has_previous": false,
+        "item_count": 12
+    },
+    "blogs": [...]
+}
+```
+然后，通过Vue初始化MVVM：
+```
+<script>
+function initVM(data) {
+    var vm = new Vue({
+        el: '#vm',
+        data: {
+            blogs: data.blogs,
+            page: data.page
+        },
+        methods: {
+            edit_blog: function (blog) {
+                location.assign('/manage/blogs/edit?id=' + blog.id);
+            },
+            delete_blog: function (blog) {
+                if (confirm('确认要删除“' + blog.name + '”？删除后不可恢复！')) {
+                    postJSON('/api/blogs/' + blog.id + '/delete', function (err, r) {
+                        if (err) {
+                            return alert(err.message || err.error || err);
+                        }
+                        refresh();
+                    });
+                }
+            }
+        }
+    });
+    $('#vm').show();
+}
+$(function() {
+    getJSON('/api/blogs', {
+        page: {{ page_index }}
+    }, function (err, results) {
+        if (err) {
+            return fatal(err);
+        }
+        $('#loading').hide();
+        initVM(results);
+    });
+});
+</script>
+```
+View的容器是#vm，包含一个table，我们用v-repeat可以把Model的数组blogs直接变成多行的<tr>：
+```
+<div id="vm" class="uk-width-1-1">
+    <a href="/manage/blogs/create" class="uk-button uk-button-primary"><i class="uk-icon-plus"></i> 新日志</a>
+
+    <table class="uk-table uk-table-hover">
+        <thead>
+            <tr>
+                <th class="uk-width-5-10">标题 / 摘要</th>
+                <th class="uk-width-2-10">作者</th>
+                <th class="uk-width-2-10">创建时间</th>
+                <th class="uk-width-1-10">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr v-repeat="blog: blogs" >
+                <td>
+                    <a target="_blank" v-attr="href: '/blog/'+blog.id" v-text="blog.name"></a>
+                </td>
+                <td>
+                    <a target="_blank" v-attr="href: '/user/'+blog.user_id" v-text="blog.user_name"></a>
+                </td>
+                <td>
+                    <span v-text="blog.created_at.toDateTime()"></span>
+                </td>
+                <td>
+                    <a href="#0" v-on="click: edit_blog(blog)"><i class="uk-icon-edit"></i>
+                    <a href="#0" v-on="click: delete_blog(blog)"><i class="uk-icon-trash-o"></i>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div v-component="pagination" v-with="page"></div>
+</div>
+```
+往Model的blogs数组中增加一个Blog元素，table就神奇地增加了一行；把blogs数组的某个元素删除，table就神奇地减少了一行。所有复杂的Model-View的映射逻辑全部由MVVM框架完成，我们只需要在HTML中写上v-repeat指令，就什么都不用管了。
+
+可以把v-repeat="blog: blogs"看成循环代码，所以，可以在一个`<tr>`内部引用循环变量blog。v-text和v-attr指令分别用于生成文本和DOM节点属性。
 
 
+# Day 13 - 提升开发效率-使用watchdog实现热部署，不用每次修改Python代码后重启服务
+
+现在，我们已经把一个Web App的框架完全搭建好了，从后端的API到前端的MVVM，流程已经跑通了。<br>
+在继续工作前，注意到每次修改Python代码，都必须在命令行先Ctrl-C停止服务器，再重启，改动才能生效。<br>
+在开发阶段，每天都要修改、保存几十次代码，每次保存都手动来这么一下非常麻烦，严重地降低了我们的开发效率。有没有办法让服务器检测到代码修改后自动重新加载呢？<br>
+Django的开发环境在Debug模式下就可以做到自动重新加载，如果我们编写的服务器也能实现这个功能，就能大大提升开发效率。<br>
+可惜的是，Django没把这个功能独立出来，不用Django就享受不到，怎么办？<br>
+其实Python本身提供了重新载入模块的功能，但不是所有模块都能被重新载入。另一种思路是检测www目录下的代码改动，一旦有改动，就自动重启服务器。<br>
+按照这个思路，我们可以编写一个辅助程序pymonitor.py，让它启动wsgiapp.py，并时刻监控www目录下的代码改动，有改动时，先把当前wsgiapp.py进程杀掉，再重启，就完成了服务器进程的自动重启。<br>
+要监控目录文件的变化，我们也无需自己手动定时扫描，Python的第三方库watchdog可以利用操作系统的API来监控目录文件的变化，并发送通知。我们先用pip安装：
+```
+$ pip3 install watchdog
+```
+利用watchdog接收文件变化的通知，如果是.py文件，就自动重启wsgiapp.py进程。<br>
+利用Python自带的subprocess实现进程的启动和终止，并把输入输出重定向到当前进程的输入输出中。<br>
+通过`pymonitor.py`中大约70行代码实现了Debug模式的自动重新加载。用下面的命令启动服务器：
+```
+$ python3 pymonitor.py wsgiapp.py
+```
+或者给pymonitor.py加上可执行权限，启动服务器：
+```
+$ ./pymonitor.py app.py
+```
+现在，只要一保存代码，就可以刷新浏览器看到效果，大大提升了开发效率。<br>
+
+
+# Day 14 - 完成Web App
+
+在Web App框架和基本流程跑通后，剩下的工作全部是体力活了：在Debug开发模式下完成后端所有API、前端所有页面。我们需要做的事情包括：
+
+把当前用户绑定到request上，并对URL/manage/进行拦截，检查当前用户是否是管理员身份：
+```
+@asyncio.coroutine
+def auth_factory(app, handler):
+    @asyncio.coroutine
+    def auth(request):
+        logging.info('check user: %s %s' % (request.method, request.path))
+        request.__user__ = None
+        cookie_str = request.cookies.get(COOKIE_NAME)
+        if cookie_str:
+            user = yield from cookie2user(cookie_str)
+            if user:
+                logging.info('set current user: %s' % user.email)
+                request.__user__ = user
+        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+            return web.HTTPFound('/signin')
+        return (yield from handler(request))
+    return auth
+```
+### 后端API包括：
+
+* 获取日志：GET /api/blogs
+* 创建日志：POST /api/blogs
+* 修改日志：POST /api/blogs/:blog_id
+* 删除日志：POST /api/blogs/:blog_id/delete
+* 获取评论：GET /api/comments
+* 创建评论：POST /api/blogs/:blog_id/comments
+* 删除评论：POST /api/comments/:comment_id/delete
+* 创建新用户：POST /api/users
+* 获取用户：GET /api/users
+
+### 管理页面包括：
+
+* 评论列表页：GET /manage/comments
+* 日志列表页：GET /manage/blogs
+* 创建日志页：GET /manage/blogs/create
+* 修改日志页：GET /manage/blogs/
+* 用户列表页：GET /manage/users
+
+### 用户浏览页面包括：
+
+* 注册页：GET /register
+* 登录页：GET /signin
+* 注销页：GET /signout
+* 首页：GET /
+* 日志详情页：GET /blog/:blog_id
+
+把所有的功能实现，我们第一个Web App就宣告完成！
 
 
 
