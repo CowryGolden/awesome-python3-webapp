@@ -278,3 +278,13 @@ async def api_blogs(*, page='1'):
     blogs = await Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
     return dict(page=p, blogs=blogs)
 
+# 根据主键id删除Blog API
+@post('/api/blogs/{id}/delete')
+async def api_delete_blog(*, id):
+    blog = await Blog.findByPriKey(id)
+    if blog:
+        await blog.remove()
+        logging.info('The blog is removed successfully.[id=%s] [blog=%s]' % (id, blog))
+    else:
+        logging.info('The blog is not exist.[id=%s]' % id)
+    return blog
