@@ -18,6 +18,10 @@ configs = {
         'password' : 'www-data',
         'db' : 'awesome'
     },
+    'server' : {
+        'host' : '127.0.0.1',
+        'port' : 9000
+    },
     'session' : {
         'secret' : 'Awesome'
     }

@@ -12,5 +12,9 @@ __author__ = 'Cowry Golden'
 configs = {
     'db' : {
         'host' : '192.168.1.70'
+    },
+    'server' : {
+        'host' : '192.168.1.70',
+        'port' : 9000
     }
 }
