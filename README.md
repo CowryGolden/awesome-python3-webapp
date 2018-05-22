@@ -601,4 +601,169 @@ def auth_factory(app, handler):
 把所有的功能实现，我们第一个Web App就宣告完成！
 
 
+# Day 15 - 部署Web App
+
+作为一个合格的开发者，在本地环境下完成开发还远远不够，我们需要把Web App部署到远程服务器上，这样，广大用户才能访问到网站。<br>
+很多做开发的同学把部署这件事情看成是运维同学的工作，这种看法是完全错误的。首先，最近流行DevOps理念，就是说，开发和运维要变成一个整体。其次，运维的难度，其实跟开发质量有很大的关系。代码写得垃圾，运维再好也架不住天天挂掉。最后，DevOps理念需要把运维、监控等功能融入到开发中。你想服务器升级时不中断用户服务？那就得在开发时考虑到这一点。<br>
+下面，我们就来把awesome-python3-webapp部署到Linux服务器。<br>
+
+### 搭建Linux服务器
+
+要部署到Linux，首先得有一台Linux服务器。要在公网上体验的同学，可以在Amazon的AWS申请一台EC2虚拟机（免费使用1年），或者使用国内的一些云服务器，一般都提供Ubuntu Server的镜像。想在本地部署的同学，请安装虚拟机，推荐使用VirtualBox。<br>
+我们选择的Linux服务器版本是Ubuntu Server 14.04 LTS，原因是apt太简单了。如果你准备使用其他Linux版本，也没有问题。<br>
+Linux安装完成后，请确保ssh服务正在运行，否则，需要通过apt安装：<br>
+```
+$ sudo apt-get install openssh-server
+```
+有了ssh服务，就可以从本地连接到服务器上。建议把公钥复制到服务器端用户的.ssh/authorized_keys中，这样，就可以通过证书实现无密码连接。
+
+### 部署方式
+
+利用Python自带的asyncio，我们已经编写了一个异步高性能服务器。但是，我们还需要一个高性能的Web服务器，这里选择Nginx，它可以处理静态资源，同时作为反向代理把动态请求交给Python代码处理。
+
+在服务器端，我们需要定义好部署的目录结构：
+```
+/
++- srv/
+   +- awesome/       <-- Web App根目录
+      +- www/        <-- 存放Python源码
+      |  +- static/  <-- 存放静态资源文件
+      +- log/        <-- 存放log
+```
+在服务器上部署，要考虑到新版本如果运行不正常，需要回退到旧版本时怎么办。每次用新的代码覆盖掉旧的文件是不行的，需要一个类似版本控制的机制。由于Linux系统提供了软链接功能，所以，我们把www作为一个软链接，它指向哪个目录，哪个目录就是当前运行的版本。而Nginx和python代码的配置文件只需要指向www目录即可。
+
+Nginx可以作为服务进程直接启动，但app.py还不行，所以，Supervisor登场！Supervisor是一个管理进程的工具，可以随系统启动而启动服务，它还时刻监控服务进程，如果服务进程意外退出，Supervisor可以自动重启服务。
+
+总结一下我们需要用到的服务有：
+* Nginx：高性能Web服务器+负责反向代理；
+* Supervisor：监控服务进程的工具；
+* MySQL：数据库服务。
+
+在Linux服务器上用apt可以直接安装上述服务：
+```
+$ sudo apt-get install nginx supervisor python3 mysql-server
+```
+然后，再把我们自己的Web App用到的Python库安装了：
+```
+$ sudo pip3 install jinja2 aiomysql aiohttp
+```
+在服务器上创建目录/srv/awesome/以及相应的子目录。<br>
+在服务器上初始化MySQL数据库，把数据库初始化脚本schema.sql复制到服务器上执行：
+```
+$ mysql -u root -p < schema.sql
+```
+服务器端准备就绪。
+
+### 部署
+
+用FTP还是SCP还是rsync复制文件？如果你需要手动复制，用一次两次还行，一天如果部署50次不但慢、效率低，而且容易出错。<br>
+正确的部署方式是使用工具配合脚本完成自动化部署。Fabric就是一个自动化部署工具。由于Fabric是用Python 2.x开发的，所以，部署脚本要用Python 2.7来编写，本机还必须安装Python 2.7版本。<br>
+要用Fabric部署，需要在本机（是开发机器，不是Linux服务器）安装Fabric：
+```
+$ pip install fabric==1.10.2    # 注意当前最高版本为2.0.1，版本太高内部会有不满足依赖，from fabric.api import * 时会报错：ImportError: No module named api
+```
+Linux服务器上不需要安装Fabric，Fabric使用SSH直接登录服务器并执行部署命令。<br>
+下一步是编写部署脚本。Fabric的部署脚本叫fabfile.py，我们把它放到awesome-python-webapp的目录下，与www目录平级：
+```
+awesome-python-webapp/
++- fabfile.py
++- www/
++- ...
+```
+
+### 配置Supervisor
+
+上面让Supervisor重启awesome的命令会失败，因为我们还没有配置Supervisor呢。<br>
+编写一个Supervisor的配置文件awesome.conf，存放到/etc/supervisor/conf.d/目录下：
+```
+[program:awesome]
+
+command     = /srv/awesome/www/app.py
+directory   = /srv/awesome/www
+user        = www-data
+startsecs   = 3
+
+redirect_stderr         = true
+stdout_logfile_maxbytes = 50MB
+stdout_logfile_backups  = 10
+stdout_logfile          = /srv/awesome/log/app.log
+```
+配置文件通过[program:awesome]指定服务名为awesome，command指定启动app.py。<br>
+然后重启Supervisor后，就可以随时启动和停止Supervisor管理的服务了：
+```
+$ sudo supervisorctl reload
+$ sudo supervisorctl start awesome
+$ sudo supervisorctl status
+awesome                RUNNING    pid 1401, uptime 5:01:34
+```
+
+### 配置Nginx
+
+Supervisor只负责运行app.py，我们还需要配置Nginx。把配置文件awesome放到/etc/nginx/sites-available/目录下：
+```
+server {
+    listen      80; # 监听80端口
+
+    root       /srv/awesome/www;
+    access_log /srv/awesome/log/access_log;
+    error_log  /srv/awesome/log/error_log;
+
+    # server_name awesome.liaoxuefeng.com; # 配置域名
+
+    client_max_body_size 1m;
+
+    gzip            on;
+    gzip_min_length 1024;
+    gzip_buffers    4 8k;
+    gzip_types      text/css application/x-javascript application/json;
+
+    sendfile on;
+
+    # 处理静态文件/favicon.ico:
+    location /favicon.ico {
+        root /srv/awesome/www;
+    }
+
+    # 处理静态资源:
+    location ~ ^\/static\/.*$ {
+        root /srv/awesome/www;
+    }
+
+    # 动态请求转发到9000端口:
+    location / {
+        proxy_pass       http://127.0.0.1:9000;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+然后在/etc/nginx/sites-enabled/目录下创建软链接：
+```
+$ pwd
+/etc/nginx/sites-enabled
+$ sudo ln -s /etc/nginx/sites-available/awesome .
+```
+让Nginx重新加载配置文件，不出意外，我们的awesome-python3-webapp应该正常运行：
+```
+$ sudo /etc/init.d/nginx reload
+```
+如果有任何错误，都可以在/srv/awesome/log下查找Nginx和App本身的log。如果Supervisor启动时报错，可以在/var/log/supervisor下查看Supervisor的log。<br>
+如果一切顺利，你可以在浏览器中访问Linux服务器上的awesome-python3-webapp了。
+
+
+# Day 16 - 编写移动App
+
+网站部署上线后，还缺点啥呢？<br>
+在移动互联网浪潮席卷而来的今天，一个网站没有上线移动App，出门根本不好意思跟人打招呼。<br>
+所以，awesome-python3-webapp必须得有一个移动App版本！<br>
+
+### 开发iPhone版本
+
+们首先来看看如何开发iPhone App。前置条件：一台Mac电脑，安装XCode和最新的iOS SDK。<br>
+在使用MVVM编写前端页面时，我们就能感受到，用REST API封装网站后台的功能，不但能清晰地分离前端页面和后台逻辑，现在这个好处更加明显，移动App也可以通过REST API从后端拿到数据。<br>
+我们来设计一个简化版的iPhone App，包含两个屏幕：列出最新日志和阅读日志的详细内容，只需要调用API：`/api/blogs`。<br>
+在XCode中完成App编写，由于我们的教程是Python，关于如何开发iOS，请移步[Develop Apps for iOS](https://developer.apple.com/ios/)。<br>
+[请点击下载iOS App源码](https://github.com/michaelliao/awesome-python3-webapp/tree/day-16/ios)。<br>
+如何编写Android App？这个当成作业了。
 

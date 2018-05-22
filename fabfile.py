@@ -18,7 +18,7 @@ from datetime import datetime
 from fabric.api import *
 
 # 如下配置根据开发机器和远程服务器的具体情况来修改
-env.user = 'CowryGolden'
+env.user = 'webapp'
 env.sudo_user = 'root'
 env.hosts = ['192.168.56.70']
 
@@ -136,7 +136,7 @@ def rollback():
             sudo('/etc/init.d/nginx reload')
         print ('ROLLBACKED OK.')
 
-# 将数据库数据备份到本地
+# 将数据库数据备份恢复到本地库
 def restore2local():
     '''
     Restore db to local
