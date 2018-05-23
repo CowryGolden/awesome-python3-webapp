@@ -67,7 +67,7 @@
 	$ git status
 	</pre>
 
-* 首先使用git checkout master切换回master分支，再把dev分支的工作成果合并到master分支上(要想远程仓库同步合并分支信息，请使用：git push -u origin master 推到远程库)：
+* 首先使用git checkout master切换回master分支，再把dev分支的工作成果合并到master分支上(要想远程仓库同步合并分支信息，请使用：git push [-u] origin master 推到远程库)：
 	<pre>
 	$ git checkout master
 	......
@@ -78,7 +78,7 @@
 	 1 file changed, 1 insertion(+)
 	</pre>
 
-* git checkout master切换回master分支，准备合并dev分支，请注意--no-ff参数，表示禁用Fast forward(要想远程仓库同步合并分支信息，请使用：git push -u origin master 推到远程库)：
+* git checkout master切换回master分支，准备合并dev分支，请注意--no-ff参数，表示禁用Fast forward(要想远程仓库同步合并分支信息，请使用：git push [-u] origin master 推到远程库)：
 	<pre>
 	$ git merge --no-ff -m "merge with no-ff" dev
 	Merge made by the 'recursive' strategy.
@@ -273,6 +273,29 @@
 	    │ Local Repo  │
 	    └─────────────┘
 	</pre>
+
+
+## git 代码协同之回车问题 CRLF(Windows)/LF(Linux、Mac)
+
+* 查看当前git的配置：`$ git config --list` 简写`-l`
+
+* <b>Git可以在你提交时自动地把行结束符CRLF转换成LF，而在签出代码时把LF转换成CRLF。</b>用core.autocrlf来打开此项功能， 如果是在Windows系统上，把它设置成true，这样当签出代码时，LF会被转换成CRLF：
+
+	```
+	$ git config --global core.autocrlf true
+	```
+
+* 如果你是Windows程序员，且正在开发<b>仅运行在Windows上</b>的项目，可以设置false取消此功能，把回车符记录在库中：
+
+	```
+	$ git config --global core.autocrlf false
+	```
+
+* Linux或Mac系统使用LF作为行结束符，当一个以CRLF为行结束符的文件不小心被引入时你肯定想进行修正，把core.autocrlf设置成input来告诉Git在<b>提交时</b>把CRLF转换成LF，<b>签出时不转换</b>：
+
+	```
+	$ git config --global core.autocrlf input
+	```
 
 
 ## checkout和reset进行版本回退
